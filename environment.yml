@@ -16,4 +16,4 @@ dependencies:
   - future
   - astropy>=3.2
   - json_tricks
-
+  - git://github.com/andreatramacere/oda_api.git#egg=oda_api

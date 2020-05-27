@@ -12,3 +12,8 @@ dependencies:
   - partd
   - bokeh
   - dask
+  - requests
+  - future
+  - astropy>=3.2
+  - json_tricks
+

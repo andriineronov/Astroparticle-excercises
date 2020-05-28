@@ -21,9 +21,8 @@ from astropy.io import ascii
 import base64
 import  copy
 import pickle
-from . import __version__
+
 from itertools import cycle
-import re
 
 from .data_products import NumpyDataProduct,BinaryData,ApiCatalog
 
@@ -124,7 +123,6 @@ class DispatcherAPI(object):
         if url is None:
             url=self.url
         parameters_dict['api']='True'
-        parameters_dict['oda_api_version'] = __version__
         print('- waiting for remote response, please wait',handle,url)
         for k in parameters_dict.keys():
             print(k,parameters_dict[k])
@@ -272,8 +270,7 @@ class DispatcherAPI(object):
         kwargs['session_id'] = self.generate_session_id()
         kwargs['dry_run'] = dry_run,
 
-        res = requests.get("%s/api/par-names" % self.url, params=dict(instrument=instrument,product_type=product), cookies=self.cookies)
-
+        res = requests.get("%s/api/par-names" % self.url)
 
         if res.status_code == 200:
 
@@ -283,14 +280,14 @@ class DispatcherAPI(object):
             for _i in _ignore_list:
                 del validation_dict[_i]
 
-            #res = requests.get("%s/api/par-names" % self.url, params=dict(instrument=instrument,product_type=product), cookies=self.cookies)
+            res = requests.get("%s/api/par-names" % self.url, params=dict(instrument=instrument,product_type=product), cookies=self.cookies)
 
             valid_names=self._decode_res_json(res)
             for n in validation_dict.keys():
                 if n not in valid_names:
                     raise RuntimeError('the parameter: %s'%n, 'is not among the valid ones:',valid_names)
         else:
-            warnings.warn('parameter check not available on remote server, check carefully parameters name')
+            warnings.warn('paramter check not available on remote server, check carefully parameters name')
 
         res = self.request(kwargs)
         data = None
@@ -328,7 +325,7 @@ class DispatcherAPI(object):
                 #        t=data.extend([])
                 data.extend([ascii.read(table_binary) for table_binary in js['products']['astropy_table_product_binary_list']])
 
-            d=DataCollection(data,instrument=instrument,product=product)
+            d=DataCollection(data)
 
         else:
             self._decode_res_json(res.json()['products']['instrumet_parameters'])
@@ -382,59 +379,43 @@ class DispatcherAPI(object):
 class DataCollection(object):
 
 
-    def __init__(self,data_list,add_meta_to_name=['src_name','product'],instrument=None,product=None):
+    def __init__(self,data_list,add_meta_to_name=['src_name','product']):
         self._p_list = []
         self._n_list = []
         for ID,data in enumerate(data_list):
 
-            name=''
             if hasattr(data,'name'):
-                name=data.name
+                name=data.name+'prod_%d_'%ID
+            else:
+                name='pord_%d_' % ID
 
-            if name.strip()=='':
-                if product is not None:
-                    name = '%s'%product
-                elif instrument is not None:
-                    name = '%s' % instrument
-                else:
-                    name = 'prod'
+            name = self._build_prod_name(data, name, add_meta_to_name)
 
-            name='%s_%d'%(name,ID)
-
-            name,var_name = self._build_prod_name(data, name, add_meta_to_name)
-            setattr(self, var_name, data)
+            setattr(self, name, data)
 
             self._p_list.append(data)
-            self._n_list.append(name)
+            self._n_list.append(name        )
 
     def show(self):
-        for ID, prod_name in enumerate(self._n_list):
-            if hasattr(self._p_list[ID], 'meta_data'):
-                meta_data=self._p_list[ID].meta_data
-            else:
-                meta_data=''
-            print('ID=%s prod_name=%s'%(ID,prod_name),' meta_data:',meta_data)
-            print()
+        for ID, s in enumerate(self._p_list):
+            print(ID, s.meta_data)
 
     def _build_prod_name(self,prod,name,add_meta_to_name):
-
         for kw in add_meta_to_name:
-            if hasattr(prod,'meta_data'):
-                if kw in prod.meta_data:
-                    s = prod.meta_data[kw].replace(' ', '')
-                    if s.strip() !='':
-                        name += '_'+s.strip()
-        return name,clean_var_name(name)
+            if kw in prod.meta_data:
+                s = prod.meta_data[kw].replace(' ', '')
 
-    def save_all_data(self,prenpend_name=None):
-        for pname,prod in zip(self._n_list,self._p_list):
-            if prenpend_name is not  None:
-                file_name=prenpend_name+'_'+pname
-            else:
-                file_name=pname
+                name += s.strip()
 
-            file_name= file_name +'.fits'
-            prod.write_fits_file(file_name)
+        return name
+
+    def save_all_data(self,prenpend_name='',add_meta_to_name=['src_name','product']):
+        for prod in self._p_list:
+            name = prenpend_name
+            name = self._build_prod_name(prod,name,add_meta_to_name)
+
+            name= name +'.fits'
+            prod.write_fits_file(name)
 
 
     def save(self,file_name):
@@ -451,17 +432,3 @@ class DataCollection(object):
            dc = DataCollection(_l)
 
         return dc
-
-
-def clean_var_name(s):
-    s = s.replace('-', 'm')
-    s = s.replace('+', 'p')
-    s = s.replace(' ', '_')
-
-    # Remove invalid characters
-    s = re.sub('[^0-9a-zA-Z_]', '', s)
-
-     # Remove leading characters until we find a letter or underscore
-    s = re.sub('^[^a-zA-Z_]+', '', s)
-
-    return s

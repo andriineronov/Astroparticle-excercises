@@ -13,7 +13,7 @@ __author__ = 'andrea tramacere'
 
 from setuptools import setup, find_packages
 import  glob
-import json
+
 
 
 f = open("./requirements.txt",'r')
@@ -25,17 +25,14 @@ packs=find_packages()
 
 print ('packs',packs)
 
-with open('oda_api/pkg_info.json') as fp:
-    _info = json.load(fp)
 
-__version__ = _info['version']
 
 
 include_package_data=True
 
 scripts_list=glob.glob('./bin/*')
 setup(name='oda_api',
-      version=__version__,
+      version=1.0,
       description='API plugin  for CDCI online data analysis',
       author='Andrea Tramacere',
       author_email='andrea.tramacere@unige.ch',
